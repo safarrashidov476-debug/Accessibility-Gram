@@ -1,14 +1,13 @@
 package com.example.blindshooter
 
 import android.app.Activity
-import android.media.AudioManager
-import android.media.ToneGenerator
+import android.media.AudioAttributes
+import android.media.SoundPool
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.speech.tts.TextToSpeech
 import android.view.MotionEvent
-import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import java.util.Locale
@@ -17,8 +16,12 @@ import kotlin.random.Random
 class MainActivity : Activity(), TextToSpeech.OnInitListener {
 
     private lateinit var tts: TextToSpeech
-    private lateinit var toneGenLeft: ToneGenerator
-    private lateinit var toneGenRight: ToneGenerator
+    private lateinit var soundPool: SoundPool
+
+    private var gunshotId: Int = 0
+    private var reloadId: Int = 0
+    private var footstepId: Int = 0
+
     private val handler = Handler(Looper.getMainLooper())
 
     private var isEnemyPresent = false
@@ -38,8 +41,22 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
         setContentView(layout)
 
         tts = TextToSpeech(this, this)
-        toneGenLeft = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
-        toneGenRight = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
+
+        // Initialize SoundPool
+        val audioAttributes = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_GAME)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build()
+
+        soundPool = SoundPool.Builder()
+            .setMaxStreams(5)
+            .setAudioAttributes(audioAttributes)
+            .build()
+
+        // Load sounds
+        gunshotId = soundPool.load(this, R.raw.gunshot, 1)
+        reloadId = soundPool.load(this, R.raw.reload, 1)
+        footstepId = soundPool.load(this, R.raw.footstep, 1)
 
         layout.setOnTouchListener { _, event ->
             if (event.action == MotionEvent.ACTION_DOWN) {
@@ -68,6 +85,7 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
         if (isPlaying) return
         isPlaying = true
         score = 0
+        soundPool.play(reloadId, 1f, 1f, 1, 0, 1f)
         tts.speak("O'yin boshlandi. Ovoz qaysi tomondan kelsa, o'sha tomonga bosing.", TextToSpeech.QUEUE_FLUSH, null, null)
         scheduleEnemySpawn()
     }
@@ -85,17 +103,16 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
         isEnemyPresent = true
         enemyPosition = if (Random.nextBoolean()) "left" else "right"
 
-        // Simulate spatial sound by playing tone mostly on one side
-        val volumeLeft = if (enemyPosition == "left") 1.0f else 0.1f
-        val volumeRight = if (enemyPosition == "right") 1.0f else 0.1f
+        // Use SoundPool for spatial audio (stereo panning)
+        val leftVolume = if (enemyPosition == "left") 1.0f else 0.1f
+        val rightVolume = if (enemyPosition == "right") 1.0f else 0.1f
 
-        // Warning: ToneGenerator doesn't support stereo panning easily in this basic setup.
-        // For a real app, SoundPool with stereo panning is required. We use beep as a placeholder.
+        // Play footsteps
+        soundPool.play(footstepId, leftVolume, rightVolume, 1, 0, 1f)
+
         if (enemyPosition == "left") {
-            toneGenLeft.startTone(ToneGenerator.TONE_PROP_BEEP, 1000)
             tts.speak("Chapda", TextToSpeech.QUEUE_ADD, null, null)
         } else {
-            toneGenRight.startTone(ToneGenerator.TONE_PROP_BEEP2, 1000)
             tts.speak("O'ngda", TextToSpeech.QUEUE_ADD, null, null)
         }
 
@@ -105,14 +122,16 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
 
     private val enemyAction = Runnable {
         if (isEnemyPresent) {
-            // Enemy shot the player
+            // Enemy shoots player
+            soundPool.play(gunshotId, 1f, 1f, 1, 0, 1f)
             tts.speak("Sizni otib qo'yishdi. O'yin tugadi. Sizning ochkongiz: $score. Qaytadan boshlash uchun ekranga bosing.", TextToSpeech.QUEUE_FLUSH, null, null)
             endGame()
         }
     }
 
     private fun handleShot(tappedSide: String) {
-        toneGenLeft.startTone(ToneGenerator.TONE_CDMA_ABBR_ALERT, 200) // "Pew" sound
+        // Player shoots
+        soundPool.play(gunshotId, 1f, 1f, 1, 0, 1f)
 
         if (isEnemyPresent) {
             handler.removeCallbacks(enemyAction)
@@ -121,6 +140,7 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
             if (tappedSide == enemyPosition) {
                 score++
                 tts.speak("Tegdi! Yaxshi. Ochko: $score", TextToSpeech.QUEUE_FLUSH, null, null)
+                soundPool.play(reloadId, 1f, 1f, 1, 0, 1f)
                 scheduleEnemySpawn()
             } else {
                 tts.speak("Xato! Dushman boshqa tomonda edi. O'yin tugadi. Ochko: $score", TextToSpeech.QUEUE_FLUSH, null, null)
@@ -141,8 +161,9 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
             tts.stop()
             tts.shutdown()
         }
-        toneGenLeft.release()
-        toneGenRight.release()
+        if (this::soundPool.isInitialized) {
+            soundPool.release()
+        }
         super.onDestroy()
     }
 }
