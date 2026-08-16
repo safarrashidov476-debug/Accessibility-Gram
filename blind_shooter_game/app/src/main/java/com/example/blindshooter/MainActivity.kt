@@ -6,21 +6,30 @@ import android.media.SoundPool
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.speech.tts.TextToSpeech
 import android.view.MotionEvent
 import android.view.ViewGroup
 import android.widget.FrameLayout
-import java.util.Locale
 import kotlin.random.Random
 
-class MainActivity : Activity(), TextToSpeech.OnInitListener {
+class MainActivity : Activity() {
 
-    private lateinit var tts: TextToSpeech
     private lateinit var soundPool: SoundPool
 
+    // SFX
     private var gunshotId: Int = 0
     private var reloadId: Int = 0
     private var footstepId: Int = 0
+
+    // Voice lines (Sardor TTS)
+    private var welcomeId: Int = 0
+    private var startGameId: Int = 0
+    private var leftId: Int = 0
+    private var rightId: Int = 0
+    private var gameoverId: Int = 0
+    private var hitId: Int = 0
+    private var missId: Int = 0
+    private var emptyShotId: Int = 0
+    private var reloadPromptId: Int = 0
 
     private val handler = Handler(Looper.getMainLooper())
 
@@ -28,6 +37,11 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
     private var enemyPosition = "none" // "left" or "right"
     private var score = 0
     private var isPlaying = false
+    private var ammo = 6
+    private val maxAmmo = 6
+
+    // Timing tracking
+    private var enemyReactionTime = 2500L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -40,8 +54,6 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
         layout.setBackgroundColor(android.graphics.Color.BLACK)
         setContentView(layout)
 
-        tts = TextToSpeech(this, this)
-
         // Initialize SoundPool
         val audioAttributes = AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_GAME)
@@ -49,50 +61,87 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
             .build()
 
         soundPool = SoundPool.Builder()
-            .setMaxStreams(5)
+            .setMaxStreams(10)
             .setAudioAttributes(audioAttributes)
             .build()
 
-        // Load sounds
+        // Load SFX
         gunshotId = soundPool.load(this, R.raw.gunshot, 1)
         reloadId = soundPool.load(this, R.raw.reload, 1)
         footstepId = soundPool.load(this, R.raw.footstep, 1)
 
-        layout.setOnTouchListener { _, event ->
-            if (event.action == MotionEvent.ACTION_DOWN) {
-                val screenWidth = resources.displayMetrics.widthPixels
-                val x = event.x
+        // Load Voices
+        welcomeId = soundPool.load(this, R.raw.welcome, 1)
+        startGameId = soundPool.load(this, R.raw.start_game, 1)
+        leftId = soundPool.load(this, R.raw.left, 1)
+        rightId = soundPool.load(this, R.raw.right, 1)
+        gameoverId = soundPool.load(this, R.raw.gameover, 1)
+        hitId = soundPool.load(this, R.raw.hit, 1)
+        missId = soundPool.load(this, R.raw.miss, 1)
+        emptyShotId = soundPool.load(this, R.raw.empty_shot, 1)
+        reloadPromptId = soundPool.load(this, R.raw.reload_prompt, 1)
 
+        // Ensure sounds are loaded before playing welcome
+        soundPool.setOnLoadCompleteListener { _, sampleId, status ->
+            if (status == 0 && sampleId == welcomeId) {
+                // Short delay to allow engine initialization completely
+                handler.postDelayed({ playVoice(welcomeId) }, 500)
+            }
+        }
+
+        // Add Touch Listeners for shooting using GestureDetector to avoid conflict with long press
+        val gestureDetector = android.view.GestureDetector(this, object : android.view.GestureDetector.SimpleOnGestureListener() {
+            override fun onSingleTapUp(e: MotionEvent): Boolean {
+                val screenWidth = resources.displayMetrics.widthPixels
+                val x = e.x
                 if (isPlaying) {
                     val tappedSide = if (x < screenWidth / 2) "left" else "right"
                     handleShot(tappedSide)
                 } else {
                     startGame()
                 }
+                return true
             }
+
+            override fun onLongPress(e: MotionEvent) {
+                if (isPlaying) {
+                    reloadWeapon()
+                }
+            }
+        })
+
+        layout.setOnTouchListener { _, event ->
+            gestureDetector.onTouchEvent(event)
             true
         }
     }
 
-    override fun onInit(status: Int) {
-        if (status == TextToSpeech.SUCCESS) {
-            tts.language = Locale("uz", "UZ") // Try Uzbek, fallback to default if unavailable
-            tts.speak("O'yinga xush kelibsiz. Boshlash uchun ekranga bosing.", TextToSpeech.QUEUE_FLUSH, null, null)
-        }
+    private fun playVoice(id: Int, leftVol: Float = 1f, rightVol: Float = 1f) {
+        soundPool.play(id, leftVol, rightVol, 1, 0, 1f)
     }
 
     private fun startGame() {
         if (isPlaying) return
         isPlaying = true
         score = 0
+        ammo = maxAmmo
+        enemyReactionTime = 2500L // Reset reaction time
+
         soundPool.play(reloadId, 1f, 1f, 1, 0, 1f)
-        tts.speak("O'yin boshlandi. Ovoz qaysi tomondan kelsa, o'sha tomonga bosing.", TextToSpeech.QUEUE_FLUSH, null, null)
-        scheduleEnemySpawn()
+        handler.postDelayed({ playVoice(startGameId) }, 500)
+
+        // schedule after the voice finishes roughly
+        handler.postDelayed({ scheduleEnemySpawn() }, 3000)
+    }
+
+    private fun reloadWeapon() {
+        ammo = maxAmmo
+        soundPool.play(reloadId, 1f, 1f, 1, 0, 1f)
     }
 
     private fun scheduleEnemySpawn() {
         if (!isPlaying) return
-        val delay = Random.nextLong(2000, 5000)
+        val delay = Random.nextLong(1500, 3500)
         handler.postDelayed({
             spawnEnemy()
         }, delay)
@@ -103,33 +152,56 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
         isEnemyPresent = true
         enemyPosition = if (Random.nextBoolean()) "left" else "right"
 
-        // Use SoundPool for spatial audio (stereo panning)
+        // Difficulty scaling (speed progression)
+        // For every 3 points, reaction time decreases by 100ms. Min limit 800ms
+        enemyReactionTime = 2500L - ((score / 3) * 150L)
+        if (enemyReactionTime < 800L) {
+            enemyReactionTime = 800L
+        }
+
+        // Enemy variety: normal vs fast
+        // Fast enemies have slightly higher pitch footsteps and give you 20% less time to react
+        var actualReactionTime = enemyReactionTime
+        var footstepRate = 1.0f
+
+        val isFastEnemy = Random.nextBoolean() && score >= 3
+        if (isFastEnemy) {
+            actualReactionTime = (enemyReactionTime * 0.8).toLong()
+            footstepRate = 1.3f
+        }
+
+        // Play footsteps with stereo panning
         val leftVolume = if (enemyPosition == "left") 1.0f else 0.1f
         val rightVolume = if (enemyPosition == "right") 1.0f else 0.1f
+        soundPool.play(footstepId, leftVolume, rightVolume, 1, 0, footstepRate)
 
-        // Play footsteps
-        soundPool.play(footstepId, leftVolume, rightVolume, 1, 0, 1f)
-
+        // Voice cue panning matching the position
         if (enemyPosition == "left") {
-            tts.speak("Chapda", TextToSpeech.QUEUE_ADD, null, null)
+            handler.postDelayed({ playVoice(leftId, 1f, 0.1f) }, 200)
         } else {
-            tts.speak("O'ngda", TextToSpeech.QUEUE_ADD, null, null)
+            handler.postDelayed({ playVoice(rightId, 0.1f, 1f) }, 200)
         }
 
         // Enemy fires if player takes too long
-        handler.postDelayed(enemyAction, 2500)
+        handler.postDelayed(enemyAction, actualReactionTime)
     }
 
     private val enemyAction = Runnable {
         if (isEnemyPresent) {
             // Enemy shoots player
             soundPool.play(gunshotId, 1f, 1f, 1, 0, 1f)
-            tts.speak("Sizni otib qo'yishdi. O'yin tugadi. Sizning ochkongiz: $score. Qaytadan boshlash uchun ekranga bosing.", TextToSpeech.QUEUE_FLUSH, null, null)
+            handler.postDelayed({ playVoice(gameoverId) }, 500)
             endGame()
         }
     }
 
     private fun handleShot(tappedSide: String) {
+        if (ammo <= 0) {
+            playVoice(reloadPromptId)
+            return
+        }
+
+        ammo--
         // Player shoots
         soundPool.play(gunshotId, 1f, 1f, 1, 0, 1f)
 
@@ -139,15 +211,23 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
 
             if (tappedSide == enemyPosition) {
                 score++
-                tts.speak("Tegdi! Yaxshi. Ochko: $score", TextToSpeech.QUEUE_FLUSH, null, null)
-                soundPool.play(reloadId, 1f, 1f, 1, 0, 1f)
+                handler.postDelayed({ playVoice(hitId) }, 300)
+
+                if (ammo == 0) {
+                    handler.postDelayed({ playVoice(reloadPromptId) }, 1000)
+                }
+
                 scheduleEnemySpawn()
             } else {
-                tts.speak("Xato! Dushman boshqa tomonda edi. O'yin tugadi. Ochko: $score", TextToSpeech.QUEUE_FLUSH, null, null)
+                handler.postDelayed({ playVoice(missId) }, 300)
+                handler.postDelayed({ playVoice(gameoverId) }, 1500)
                 endGame()
             }
         } else {
-            tts.speak("Bekorga otdingiz.", TextToSpeech.QUEUE_FLUSH, null, null)
+            handler.postDelayed({ playVoice(emptyShotId) }, 300)
+            if (ammo == 0) {
+                handler.postDelayed({ playVoice(reloadPromptId) }, 1500)
+            }
         }
     }
 
@@ -157,13 +237,10 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
     }
 
     override fun onDestroy() {
-        if (this::tts.isInitialized) {
-            tts.stop()
-            tts.shutdown()
-        }
         if (this::soundPool.isInitialized) {
             soundPool.release()
         }
+        handler.removeCallbacksAndMessages(null)
         super.onDestroy()
     }
 }
