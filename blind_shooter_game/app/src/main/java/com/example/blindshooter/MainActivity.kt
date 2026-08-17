@@ -1,7 +1,9 @@
 package com.example.blindshooter
 
 import android.app.Activity
+import android.media.AudioAttributes
 import android.media.MediaPlayer
+import android.media.SoundPool
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -13,12 +15,22 @@ import kotlin.random.Random
 class MainActivity : Activity() {
 
     private lateinit var gestureDetector: GestureDetector
-    private var mediaPlayer: MediaPlayer? = null
+    private var voicePlayer: MediaPlayer? = null
+    private var bgPlayer: MediaPlayer? = null
+
+    private lateinit var soundPool: SoundPool
+    private var sfxTakeoff: Int = 0
+    private var sfxFlyby: Int = 0
+    private var sfxGunshot: Int = 0
+    private var sfxExplosion: Int = 0
 
     private val handler = Handler(Looper.getMainLooper())
     private var currentEnemy: EnemyPosition = EnemyPosition.NONE
     private var isGameOver = false
     private var isGameStarted = false
+
+    private var score = 0
+    private var spawnDelay = 3000L
 
     enum class EnemyPosition {
         NONE, LEFT, RIGHT, CENTER
@@ -27,7 +39,22 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        playSound(R.raw.instructions)
+        // Initialize SoundPool
+        val audioAttributes = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_GAME)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build()
+        soundPool = SoundPool.Builder()
+            .setMaxStreams(5)
+            .setAudioAttributes(audioAttributes)
+            .build()
+
+        sfxTakeoff = soundPool.load(this, R.raw.takeoff, 1)
+        sfxFlyby = soundPool.load(this, R.raw.enemy_flyby, 1)
+        sfxGunshot = soundPool.load(this, R.raw.gunshot, 1)
+        sfxExplosion = soundPool.load(this, R.raw.explosion, 1)
+
+        playVoice(R.raw.instructions)
 
         gestureDetector = GestureDetector(this, SwipeGestureListener())
     }
@@ -36,7 +63,7 @@ class MainActivity : Activity() {
         override fun run() {
             if (isGameOver) return
 
-            // If there's already an enemy and player didn't react, player crashes
+            // If there's already an enemy and player didn't react
             if (currentEnemy != EnemyPosition.NONE) {
                 gameOver()
                 return
@@ -44,8 +71,10 @@ class MainActivity : Activity() {
 
             spawnEnemy()
 
-            // Give the player 3 seconds to react
-            handler.postDelayed(this, 3000)
+            // Adjust spawn delay based on score to increase adrenaline
+            spawnDelay = maxOf(1000L, 3000L - (score * 200L))
+
+            handler.postDelayed(this, spawnDelay)
         }
     }
 
@@ -58,18 +87,25 @@ class MainActivity : Activity() {
         }
 
         when (currentEnemy) {
-            EnemyPosition.LEFT -> playSound(R.raw.enemy_left)
-            EnemyPosition.RIGHT -> playSound(R.raw.enemy_right)
-            EnemyPosition.CENTER -> playSound(R.raw.enemy_center)
+            EnemyPosition.LEFT -> playVoice(R.raw.enemy_left)
+            EnemyPosition.RIGHT -> playVoice(R.raw.enemy_right)
+            EnemyPosition.CENTER -> playVoice(R.raw.enemy_center)
             else -> {}
         }
+
+        // Add flyby whoosh for immersion when an enemy approaches
+        soundPool.play(sfxFlyby, 0.3f, 0.3f, 1, 0, 1.0f)
     }
 
     private fun gameOver() {
         isGameOver = true
         currentEnemy = EnemyPosition.NONE
         handler.removeCallbacks(gameLoop)
-        playSound(R.raw.crash)
+
+        bgPlayer?.stop()
+
+        // Big explosion
+        soundPool.play(sfxExplosion, 1.0f, 1.0f, 1, 0, 1.0f)
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -77,10 +113,18 @@ class MainActivity : Activity() {
         return super.onTouchEvent(event)
     }
 
-    private fun playSound(soundResId: Int) {
-        mediaPlayer?.release()
-        mediaPlayer = MediaPlayer.create(this, soundResId)
-        mediaPlayer?.start()
+    private fun playVoice(soundResId: Int) {
+        voicePlayer?.release()
+        voicePlayer = MediaPlayer.create(this, soundResId)
+        voicePlayer?.start()
+    }
+
+    private fun startBackgroundHum() {
+        bgPlayer?.release()
+        bgPlayer = MediaPlayer.create(this, R.raw.flight_bg)
+        bgPlayer?.isLooping = true
+        bgPlayer?.setVolume(0.4f, 0.4f)
+        bgPlayer?.start()
     }
 
     inner class SwipeGestureListener : GestureDetector.SimpleOnGestureListener() {
@@ -93,24 +137,39 @@ class MainActivity : Activity() {
         }
 
         override fun onSingleTapUp(e: MotionEvent): Boolean {
-            if (!isGameStarted) {
+            if (!isGameStarted || isGameOver) {
                 isGameStarted = true
-                playSound(R.raw.start)
-                handler.postDelayed(gameLoop, 3000)
+                isGameOver = false
+                score = 0
+                currentEnemy = EnemyPosition.NONE
+
+                // Play takeoff jet sound
+                soundPool.play(sfxTakeoff, 1.0f, 1.0f, 1, 0, 1.0f)
+                playVoice(R.raw.start)
+
+                // Start continuous background hum after takeoff finishes
+                handler.removeCallbacksAndMessages(null)
+                handler.postDelayed({
+                    if (!isGameOver) startBackgroundHum()
+                }, 3500)
+
+                handler.postDelayed(gameLoop, 4000)
                 return true
             }
 
-            if (isGameOver) return true
+            // Rapid machine gun fire
+            soundPool.play(sfxGunshot, 1.0f, 1.0f, 1, 0, 1.0f)
+            handler.postDelayed({ soundPool.play(sfxGunshot, 1.0f, 1.0f, 1, 0, 1.0f) }, 100)
+            handler.postDelayed({ soundPool.play(sfxGunshot, 1.0f, 1.0f, 1, 0, 1.0f) }, 200)
 
             if (currentEnemy == EnemyPosition.CENTER) {
-                playSound(R.raw.destroyed)
+                score++
+                handler.postDelayed({ soundPool.play(sfxExplosion, 0.7f, 0.7f, 1, 0, 1.0f) }, 250)
                 currentEnemy = EnemyPosition.NONE
                 handler.removeCallbacks(gameLoop)
-                handler.postDelayed(gameLoop, 2000) // spawn next enemy sooner
+                handler.postDelayed(gameLoop, maxOf(1000L, 2000L - (score * 150L)))
             } else {
-                playSound(R.raw.shoot)
-                // Need a slight delay before crash sound
-                handler.postDelayed({ gameOver() }, 1000)
+                handler.postDelayed({ gameOver() }, 500)
             }
             return true
         }
@@ -140,34 +199,37 @@ class MainActivity : Activity() {
     }
 
     private fun onSwipeRight() {
-        // Swiping right dodges an enemy on the left
+        // Dodges enemy on left
         if (currentEnemy == EnemyPosition.LEFT) {
-            playSound(R.raw.dodge)
+            score++
+            // Loud flyby to simulate dodging closely
+            soundPool.play(sfxFlyby, 1.0f, 1.0f, 1, 0, 1.2f)
             currentEnemy = EnemyPosition.NONE
             handler.removeCallbacks(gameLoop)
-            handler.postDelayed(gameLoop, 2000)
+            handler.postDelayed(gameLoop, maxOf(1000L, 2000L - (score * 150L)))
         } else {
-            playSound(R.raw.turn_right)
-            handler.postDelayed({ gameOver() }, 1000)
+            gameOver()
         }
     }
 
     private fun onSwipeLeft() {
-        // Swiping left dodges an enemy on the right
+        // Dodges enemy on right
         if (currentEnemy == EnemyPosition.RIGHT) {
-            playSound(R.raw.dodge)
+            score++
+            soundPool.play(sfxFlyby, 1.0f, 1.0f, 1, 0, 1.2f)
             currentEnemy = EnemyPosition.NONE
             handler.removeCallbacks(gameLoop)
-            handler.postDelayed(gameLoop, 2000)
+            handler.postDelayed(gameLoop, maxOf(1000L, 2000L - (score * 150L)))
         } else {
-            playSound(R.raw.turn_left)
-            handler.postDelayed({ gameOver() }, 1000)
+            gameOver()
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
         handler.removeCallbacks(gameLoop)
-        mediaPlayer?.release()
+        voicePlayer?.release()
+        bgPlayer?.release()
+        soundPool.release()
     }
 }
