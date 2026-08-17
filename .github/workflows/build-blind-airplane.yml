@@ -42,6 +42,10 @@ jobs:
       working-directory: ./blind_shooter_game
       run: python generate_audio.py
 
+    - name: Download Real SFX
+      working-directory: ./blind_shooter_game
+      run: bash download_real_sfx.sh
+
     - name: Build with Gradle
       working-directory: ./blind_shooter_game
       run: ./gradlew assembleDebug

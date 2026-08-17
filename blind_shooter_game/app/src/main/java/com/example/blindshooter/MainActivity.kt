@@ -59,6 +59,29 @@ class MainActivity : Activity() {
         gestureDetector = GestureDetector(this, SwipeGestureListener())
     }
 
+    override fun onPause() {
+        super.onPause()
+        // Stop background execution to prevent automatic game over while minimized
+        handler.removeCallbacksAndMessages(null)
+        if (bgPlayer?.isPlaying == true) {
+            bgPlayer?.pause()
+        }
+        if (voicePlayer?.isPlaying == true) {
+            voicePlayer?.pause()
+        }
+        soundPool.autoPause()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (isGameStarted && !isGameOver) {
+            bgPlayer?.start()
+            // Resume the game loop safely
+            handler.postDelayed(gameLoop, 1500)
+        }
+        soundPool.autoResume()
+    }
+
     private val gameLoop = object : Runnable {
         override fun run() {
             if (isGameOver) return
@@ -100,7 +123,7 @@ class MainActivity : Activity() {
     private fun gameOver() {
         isGameOver = true
         currentEnemy = EnemyPosition.NONE
-        handler.removeCallbacks(gameLoop)
+        handler.removeCallbacksAndMessages(null)
 
         bgPlayer?.stop()
 
@@ -227,7 +250,7 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        handler.removeCallbacks(gameLoop)
+        handler.removeCallbacksAndMessages(null)
         voicePlayer?.release()
         bgPlayer?.release()
         soundPool.release()
