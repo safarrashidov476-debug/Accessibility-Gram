@@ -5,6 +5,7 @@ import os
 VOICE = "uz-UZ-SardorNeural"
 
 PROMPTS = {
+    "instructions": "O'yin qoidalari. Chapda dushman desam o'ngga suring, o'ngda desam chapga suring, ro'parada desam ekranga bosing. O'yinni boshlash uchun ekranga bosing.",
     "start": "Samolyot parvozi boshlandi",
     "enemy_left": "Chapda dushman",
     "enemy_right": "O'ngda dushman",

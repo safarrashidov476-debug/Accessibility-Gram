@@ -18,6 +18,7 @@ class MainActivity : Activity() {
     private val handler = Handler(Looper.getMainLooper())
     private var currentEnemy: EnemyPosition = EnemyPosition.NONE
     private var isGameOver = false
+    private var isGameStarted = false
 
     enum class EnemyPosition {
         NONE, LEFT, RIGHT, CENTER
@@ -26,12 +27,9 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        playSound(R.raw.start)
+        playSound(R.raw.instructions)
 
         gestureDetector = GestureDetector(this, SwipeGestureListener())
-
-        // Start game loop after initial delay
-        handler.postDelayed(gameLoop, 4000)
     }
 
     private val gameLoop = object : Runnable {
@@ -95,6 +93,13 @@ class MainActivity : Activity() {
         }
 
         override fun onSingleTapUp(e: MotionEvent): Boolean {
+            if (!isGameStarted) {
+                isGameStarted = true
+                playSound(R.raw.start)
+                handler.postDelayed(gameLoop, 3000)
+                return true
+            }
+
             if (isGameOver) return true
 
             if (currentEnemy == EnemyPosition.CENTER) {
@@ -116,7 +121,7 @@ class MainActivity : Activity() {
             velocityX: Float,
             velocityY: Float
         ): Boolean {
-            if (isGameOver || e1 == null) return false
+            if (!isGameStarted || isGameOver || e1 == null) return false
 
             val diffY = e2.y - e1.y
             val diffX = e2.x - e1.x
