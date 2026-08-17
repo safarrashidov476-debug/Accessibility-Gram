@@ -5,11 +5,16 @@ import os
 VOICE = "uz-UZ-SardorNeural"
 
 PROMPTS = {
-    "start": "O'yin boshlandi",
-    "kick": "Zarba",
-    "goal": "Gol",
-    "left": "Chapga",
-    "right": "O'ngga",
+    "start": "Samolyot parvozi boshlandi",
+    "enemy_left": "Chapda dushman",
+    "enemy_right": "O'ngda dushman",
+    "enemy_center": "Roparada dushman",
+    "shoot": "O'q uzildi",
+    "destroyed": "Dushman yo'q qilindi",
+    "dodge": "Aylanib o'tildi",
+    "crash": "Avariya",
+    "turn_left": "Chapga burilish",
+    "turn_right": "O'ngga burilish",
 }
 
 OUTPUT_DIR = "app/src/main/res/raw"

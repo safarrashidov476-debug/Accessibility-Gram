@@ -1,4 +1,4 @@
-name: Build Blind Football Game
+name: Build Blind Airplane Game
 
 on:
   push:
@@ -49,5 +49,5 @@ jobs:
     - name: Upload APK artifact
       uses: actions/upload-artifact@v4
       with:
-        name: blind-shooter-game-apk
+        name: blind-airplane-game-apk
         path: blind_shooter_game/app/build/outputs/apk/debug/app-debug.apk
