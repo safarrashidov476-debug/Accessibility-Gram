@@ -24,8 +24,9 @@ import java.util.Arrays;
 public class UserConfig extends BaseController {
 
     public static int selectedAccount;
-    public final static int MAX_ACCOUNT_DEFAULT_COUNT = 3;
-    public final static int MAX_ACCOUNT_COUNT = 4;
+    // Tiflogram: 5 ta akkaunt (native tomon bilan mos, patch shart emas)
+    public final static int MAX_ACCOUNT_DEFAULT_COUNT = 5;
+    public final static int MAX_ACCOUNT_COUNT = 5;
 
     private final Object sync = new Object();
     private volatile boolean configLoaded;
@@ -122,7 +123,8 @@ public class UserConfig extends BaseController {
     }
 
     public static int getMaxAccountCount() {
-        return hasPremiumOnAccounts() ? 5 : 3;
+        // Tiflogram: premium talab qilinmaydi, doim 5
+        return 5;
     }
 
     public int getNewMessageId() {

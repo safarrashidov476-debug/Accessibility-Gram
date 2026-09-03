@@ -13717,6 +13717,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             });
         });
         io.addGap();
+        io.add(R.drawable.msg_bot, "Gemini", () -> {
+            org.telegram.messenger.GeminiSafetyScanner.openAssistant(DialogsActivity.this, currentAccount);
+        });
         io.add(R.drawable.outline_groups_24, getString(R.string.NewGroup), () -> {
             Bundle args = new Bundle();
             presentFragment(new GroupCreateActivity(args));
