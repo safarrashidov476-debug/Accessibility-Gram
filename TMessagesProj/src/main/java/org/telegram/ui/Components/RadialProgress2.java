@@ -239,9 +239,7 @@ public class RadialProgress2 {
             int percent = Math.round(Math.max(0f, Math.min(1f, value)) * 100);
             if (percent != lastAnnouncedPercent && percent >= 0 && percent <= 100) {
                 lastAnnouncedPercent = percent;
-                if (percent % 10 == 0 || percent == 100) {
-                    AndroidUtilities.makeAccessibilityAnnouncement(percent + " %");
-                }
+                AndroidUtilities.makeAccessibilityAnnouncement(percent + " %");
             }
         } else {
             lastAnnouncedPercent = -1;
