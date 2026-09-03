@@ -1275,6 +1275,12 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
             }
             useOnlineColor = true;
             setTypingAnimation(true);
+            if (subtitleTextView != null && newSubtitle != null) {
+                CharSequence currentShownSubtitle = subtitleTextView.getText();
+                if (currentShownSubtitle == null || !newSubtitle.toString().equals(currentShownSubtitle.toString())) {
+                    subtitleTextView.announceForAccessibility(newSubtitle);
+                }
+            }
         }
         lastSubtitleColorKey = useOnlineColor ? Theme.key_chat_status : Theme.key_actionBarDefaultSubtitle;
         if (lastSubtitle == null) {

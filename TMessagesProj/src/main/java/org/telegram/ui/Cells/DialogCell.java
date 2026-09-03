@@ -5511,28 +5511,30 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
             } else if (user != null) {
                 if (UserObject.isReplyUser(user)) {
                     sb.append(getString(R.string.RepliesTitle));
+                    sb.append(". ");
                 } else if (UserObject.isAnonymous(user)) {
                     sb.append(getString(R.string.AnonymousForward));
+                    sb.append(". ");
                 } else {
-                    if (user.bot) {
-                        sb.append(getString(R.string.Bot));
-                        sb.append(". ");
-                    }
                     if (user.self) {
                         sb.append(getString(R.string.SavedMessages));
                     } else {
                         sb.append(ContactsController.formatName(user.first_name, user.last_name));
                     }
+                    sb.append(". ");
+                    if (user.bot) {
+                        sb.append(getString(R.string.Bot));
+                        sb.append(". ");
+                    }
                 }
-                sb.append(". ");
             } else if (chat != null) {
+                sb.append(chat.title);
+                sb.append(". ");
                 if (chat.broadcast) {
                     sb.append(getString(R.string.AccDescrChannel));
                 } else {
                     sb.append(getString(R.string.AccDescrGroup));
                 }
-                sb.append(". ");
-                sb.append(chat.title);
                 sb.append(". ");
             }
         }

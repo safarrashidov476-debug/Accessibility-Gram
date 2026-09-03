@@ -78,6 +78,8 @@ public class RadialProgress2 {
         this(parentView, null);
     }
 
+    private int lastAnnouncedPercent = -1;
+
     public RadialProgress2(View parentView, Theme.ResourcesProvider resourcesProvider) {
         this.resourcesProvider = resourcesProvider;
         miniProgressBackgroundPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -232,6 +234,17 @@ public class RadialProgress2 {
             miniMediaActionDrawable.setProgress(value, animated);
         } else {
             mediaActionDrawable.setProgress(value, animated);
+        }
+        if (parent != null && parent.isAccessibilityFocused()) {
+            int percent = Math.round(Math.max(0f, Math.min(1f, value)) * 100);
+            if (percent != lastAnnouncedPercent && percent >= 0 && percent <= 100) {
+                lastAnnouncedPercent = percent;
+                if (percent % 10 == 0 || percent == 100) {
+                    AndroidUtilities.makeAccessibilityAnnouncement(percent + " %");
+                }
+            }
+        } else {
+            lastAnnouncedPercent = -1;
         }
     }
 
