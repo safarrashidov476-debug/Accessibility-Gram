@@ -1329,6 +1329,80 @@ public class DownloadController extends BaseController implements NotificationCe
         } else if (id == NotificationCenter.fileLoaded || id == NotificationCenter.httpFileDidLoad) {
             listenerInProgress = true;
             String fileName = (String) args[0];
+            // Tiflogram: tovush FAQAT foydalanuvchi o'zi boshlagan yuklamada.
+            // 1) loadingFileMessagesObservers — hali remove qilinmagan; putInDownloadsStore
+            //    eng ishonchli belgi (didPressButton / didPressMiniButton da o'rnatiladi).
+            // 2) Zaxira: downloadingFiles + recentDownloadingFiles (document yoki getFileName).
+            boolean tiflogramIsUserDownload = false;
+            try {
+                ArrayList<MessageObject> tiflogramObs = loadingFileMessagesObservers.get(fileName);
+                if (tiflogramObs != null) {
+                    for (int _i = 0; _i < tiflogramObs.size() && !tiflogramIsUserDownload; _i++) {
+                        MessageObject _mo = tiflogramObs.get(_i);
+                        if (_mo != null && _mo.putInDownloadsStore) {
+                            tiflogramIsUserDownload = true;
+                        }
+                    }
+                }
+                if (!tiflogramIsUserDownload) {
+                    for (int _i = 0; _i < downloadingFiles.size() && !tiflogramIsUserDownload; _i++) {
+                        MessageObject _mo = downloadingFiles.get(_i);
+                        if (_mo == null) continue;
+                        if (_mo.putInDownloadsStore) {
+                            if (_mo.getDocument() != null &&
+                                    fileName.equals(FileLoader.getAttachFileName(_mo.getDocument()))) {
+                                tiflogramIsUserDownload = true;
+                            } else if (fileName.equals(_mo.getFileName())) {
+                                tiflogramIsUserDownload = true;
+                            }
+                        }
+                    }
+                }
+                if (!tiflogramIsUserDownload) {
+                    for (int _i = 0; _i < recentDownloadingFiles.size() && !tiflogramIsUserDownload; _i++) {
+                        MessageObject _mo = recentDownloadingFiles.get(_i);
+                        if (_mo == null) continue;
+                        if (_mo.putInDownloadsStore) {
+                            if (_mo.getDocument() != null &&
+                                    fileName.equals(FileLoader.getAttachFileName(_mo.getDocument()))) {
+                                tiflogramIsUserDownload = true;
+                            } else if (fileName.equals(_mo.getFileName())) {
+                                tiflogramIsUserDownload = true;
+                            }
+                        }
+                    }
+                }
+            } catch (Throwable ignore) {
+            }
+            FileLog.d("TiflogramSound fileName=" + fileName + " match=" + tiflogramIsUserDownload
+                    + " downloadingFiles.size=" + downloadingFiles.size()
+                    + " recentDownloadingFiles.size=" + recentDownloadingFiles.size());
+            if (tiflogramIsUserDownload) {
+                try {
+                    android.media.MediaPlayer mp = android.media.MediaPlayer.create(
+                            ApplicationLoader.applicationContext,
+                            org.telegram.messenger.R.raw.tiflogram_dl_done);
+                    if (mp != null) {
+                        mp.setOnCompletionListener(android.media.MediaPlayer::release);
+                        mp.start();
+                    }
+                } catch (Throwable ignore) {
+                }
+                try {
+                    android.view.accessibility.AccessibilityManager am =
+                            (android.view.accessibility.AccessibilityManager)
+                                    ApplicationLoader.applicationContext.getSystemService(
+                                            android.content.Context.ACCESSIBILITY_SERVICE);
+                    if (am != null && am.isEnabled()) {
+                        android.view.accessibility.AccessibilityEvent ev =
+                                android.view.accessibility.AccessibilityEvent.obtain(
+                                        android.view.accessibility.AccessibilityEvent.TYPE_ANNOUNCEMENT);
+                        ev.getText().add("Yuklash tugadi");
+                        am.sendAccessibilityEvent(ev);
+                    }
+                } catch (Throwable ignore) {
+                }
+            }
             ArrayList<MessageObject> messageObjects = loadingFileMessagesObservers.get(fileName);
             if (messageObjects != null) {
                 for (int a = 0, size = messageObjects.size(); a < size; a++) {

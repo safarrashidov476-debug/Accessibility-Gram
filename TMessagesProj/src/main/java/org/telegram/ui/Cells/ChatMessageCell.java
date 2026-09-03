@@ -26342,6 +26342,14 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             return true;
         } else if (action == R.id.acc_action_small_button) {
             didPressMiniButton(true);
+        } else if (action == R.id.acc_action_comment) {
+            if (delegate != null) {
+                if (isRepliesChat) {
+                    delegate.didPressSideButton(ChatMessageCell.this);
+                } else {
+                    delegate.didPressCommentButton(ChatMessageCell.this);
+                }
+            }
         } else if (action == R.id.acc_action_msg_options) {
             if (delegate != null) {
                 if (currentMessageObject.type == MessageObject.TYPE_PHONE_CALL) {
@@ -26833,6 +26841,47 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 final long fileSize = currentMessageObject != null ? currentMessageObject.loadedFileSize : 0;
                 if (accessibilityText == null || accessibilityTextUnread != unread || accessibilityTextContentUnread != contentUnread || accessibilityTextFileSize != fileSize) {
                     SpannableStringBuilder sb = new SpannableStringBuilder();
+                    // Tiflogram: yuklash/yuborish foizi ENG BOSHIDA aytiladi.
+                    // Barcha media: document/video/gif/audio/music/round/photo.
+                    boolean tiflogramDownloading = (buttonState == 1) || (hasMiniProgress == 1 && miniButtonState == 1);
+                    if (tiflogramDownloading && currentMessageObject != null && !currentMessageObject.isSending()) {
+                        int tiflogramPercent = 0;
+                        long total = lastLoadingSizeTotal;
+                        long loaded = currentMessageObject.loadedFileSize;
+                        if (total <= 0 && currentMessageObject.getDocument() != null) {
+                            total = currentMessageObject.getDocument().size;
+                        }
+                        if (total > 0) {
+                            tiflogramPercent = Math.round(Math.max(0f, Math.min(1f, (float) loaded / (float) total)) * 100);
+                        }
+                        if (tiflogramPercent == 0 && radialProgress != null) {
+                            float rp = radialProgress.getProgress();
+                            if (rp > 0f && rp < 1f) {
+                                tiflogramPercent = Math.round(rp * 100);
+                            }
+                        }
+                        if (tiflogramPercent > 0 && tiflogramPercent < 100) {
+                            sb.append(String.valueOf(tiflogramPercent)).append(" foiz");
+                            sb.append("\n");
+                        } else if (tiflogramPercent >= 100) {
+                            sb.append("Yuklash tugadi");
+                            sb.append("\n");
+                        } else {
+                            sb.append("Yuklanmoqda");
+                            sb.append("\n");
+                        }
+                    } else if (tiflogramDownloading && currentMessageObject != null && currentMessageObject.isSending()) {
+                        int tiflogramPercent = 0;
+                        long total = lastLoadingSizeTotal;
+                        long loaded = currentMessageObject.loadedFileSize;
+                        if (total > 0) {
+                            tiflogramPercent = Math.round(Math.max(0f, Math.min(1f, (float) loaded / (float) total)) * 100);
+                        }
+                        if (tiflogramPercent > 0 && tiflogramPercent < 100) {
+                            sb.append(String.valueOf(tiflogramPercent)).append(" foiz yuborilmoqda");
+                            sb.append("\n");
+                        }
+                    }
                     if (isChat && currentUser != null && !currentMessageObject.isOut()) {
                         sb.append(UserObject.getUserName(currentUser));
                         sb.setSpan(new ProfileSpan(currentUser), 0, sb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
@@ -26845,6 +26894,12 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                                 sb.append(a == 0 ? " " : "\n");
                             }
                         }
+                    }
+                    // Tiflogram: men yuborgan xabarda avval o'qilgan/o'qilmagan
+                    // holati, keyin xabarning o'zi aytiladi
+                    if (currentMessageObject.isOut() && currentMessageObject.isSent() && !currentMessageObject.scheduled) {
+                        sb.append(currentMessageObject.isUnread() ? getString("AccDescrMsgUnread", R.string.AccDescrMsgUnread) : getString("AccDescrMsgRead", R.string.AccDescrMsgRead));
+                        sb.append("\n");
                     }
                     if (documentAttach != null && documentAttachType == DOCUMENT_ATTACH_TYPE_DOCUMENT) {
                         String fileName = FileLoader.getAttachFileName(documentAttach);
@@ -26886,15 +26941,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                         }
                         sb.append(messageText);
                     }
-                    if (documentAttach != null && (documentAttachType == DOCUMENT_ATTACH_TYPE_DOCUMENT || documentAttachType == DOCUMENT_ATTACH_TYPE_GIF || documentAttachType == DOCUMENT_ATTACH_TYPE_VIDEO)) {
-                        if (buttonState == 1 && loadingProgressLayout != null) {
-                            sb.append("\n");
-                            final boolean sending = currentMessageObject.isSending();
-                            final String key = sending ? "AccDescrUploadProgress" : "AccDescrDownloadProgress";
-                            final int resId = sending ? R.string.AccDescrUploadProgress : R.string.AccDescrDownloadProgress;
-                            sb.append(formatString(key, resId, AndroidUtilities.formatFileSize(currentMessageObject.loadedFileSize), AndroidUtilities.formatFileSize(lastLoadingSizeTotal)));
-                        }
-                    }
+
                     if (currentMessageObject.isMusic()) {
                         sb.append("\n");
                         sb.append(formatString("AccDescrMusicInfo", R.string.AccDescrMusicInfo, currentMessageObject.getMusicAuthor(), currentMessageObject.getMusicTitle()));
@@ -26958,8 +27005,6 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                                 sb.append(formatString("AccDescrScheduledDate", R.string.AccDescrScheduledDate, currentTimeString));
                             } else {
                                 sb.append(formatString("AccDescrSentDate", R.string.AccDescrSentDate, getString("TodayAt", R.string.TodayAt) + " " + currentTimeString));
-                                sb.append(", ");
-                                sb.append(currentMessageObject.isUnread() ? getString("AccDescrMsgUnread", R.string.AccDescrMsgUnread) : getString("AccDescrMsgRead", R.string.AccDescrMsgRead));
                             }
                         } else if (currentMessageObject.isSending()) {
                             sb.append("\n");
@@ -26979,6 +27024,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     if (getRepliesCount() > 0 && !hasCommentLayout()) {
                         sb.append("\n");
                         sb.append(formatPluralString("AccDescrNumberOfReplies", getRepliesCount()));
+                    } else if (hasCommentLayout()) {
+                        sb.append("\n");
+                        sb.append(formatPluralString("CommentsCount", getRepliesCount()));
                     }
                     if (currentMessageObject.messageOwner.reactions != null && currentMessageObject.messageOwner.reactions.results != null) {
                         if (currentMessageObject.messageOwner.reactions.results.size() == 1) {
@@ -27066,6 +27114,16 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     info.setCollectionItemInfo(AccessibilityNodeInfo.CollectionItemInfo.obtain(itemInfo.getRowIndex(), 1, 0, 1, false));
                 }
                 info.addAction(new AccessibilityNodeInfo.AccessibilityAction(R.id.acc_action_msg_options, getString("AccActionMessageOptions", R.string.AccActionMessageOptions)));
+                if (commentLayout != null) {
+                    int commentCount = getRepliesCount();
+                    CharSequence commentLabel;
+                    if (isRepliesChat) {
+                        commentLabel = getString("ViewInChat", R.string.ViewInChat);
+                    } else {
+                        commentLabel = commentCount == 0 ? getString("LeaveAComment", R.string.LeaveAComment) : formatPluralString("CommentsCount", commentCount);
+                    }
+                    info.addAction(new AccessibilityNodeInfo.AccessibilityAction(R.id.acc_action_comment, commentLabel));
+                }
                 int icon = getIconForCurrentState();
                 CharSequence actionLabel = null;
                 switch (icon) {
@@ -27171,12 +27229,8 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                         }
                     }
                 }
-                if (commentLayout != null) {
-                    info.addChild(ChatMessageCell.this, COMMENT);
-                }
-                if (drawSideButton == 1 || drawSideButton == 2) {
-                    info.addChild(ChatMessageCell.this, SHARE);
-                }
+                // "Fikr bildirish" endi alohida element emas, pastdagi acc_action_comment orqali beriladi
+                // Ulashish tugmasi TalkBack ro'yxatidan olib tashlandi
                 if (replyNameLayout != null) {
                     info.addChild(ChatMessageCell.this, REPLY);
                 }

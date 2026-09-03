@@ -3299,6 +3299,9 @@ public class NotificationsController extends BaseController implements Notificat
     }
 
     private void playInChatSound() {
+        if (openedDialogId == 0) {
+            return;
+        }
         if (!inChatSoundEnabled || MediaController.getInstance().isRecordingAudio()) {
             return;
         }
